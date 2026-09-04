@@ -895,8 +895,8 @@ function renderDashboard(){
     if (window.upcomingSortable) window.upcomingSortable.destroy();
     window.upcomingSortable = window.Sortable.create(byId("upcomingList"), {
       handle: '.drag-handle',
-      animation: 150,
-      forceFallback: true,
+      animation: 300,
+      easing: "cubic-bezier(0.25, 1, 0.5, 1)",
       onEnd: function (evt) {
         const itemEls = Array.from(byId("upcomingList").querySelectorAll('.compact-item'));
         itemEls.forEach((el, index) => {
