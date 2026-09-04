@@ -487,6 +487,17 @@
     </div>
   </div>
 
+  
+  <div class="modal-backdrop hidden" id="paymentDetailsModal" onclick="if(event.target===this)this.classList.add('hidden')">
+    <div class="modal">
+      <div class="modal-head">
+        <h2>รายละเอียดรายการ</h2>
+        <button class="icon-btn" onclick="byId('paymentDetailsModal').classList.add('hidden')"><i class="ph ph-x"></i></button>
+      </div>
+      <div class="modal-body" id="paymentDetailsBody" style="padding: 16px; font-size: 0.95rem; line-height: 1.5; text-align: left;">
+      </div>
+    </div>
+  </div>
   <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

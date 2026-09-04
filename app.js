@@ -524,6 +524,18 @@ function renderSmartLoanInstallments(preserve=true){
   if(typeof window.updateSmartLoanSummary === 'function') window.updateSmartLoanSummary();
 }
 
+function renderSmartDebtForm(type){
+  const dynamic=byId("smartDebtDynamic");
+  if(!dynamic)return;
+  dynamic.innerHTML=smartDebtFields(type,todayKey());
+  if(type==="seasycash" || type==="smart_installment"){
+    renderSmartLoanInstallments(false);
+    ["installments","paidInstallments","firstDueDate"].forEach(id=>byId(id)?.addEventListener("change",()=>renderSmartLoanInstallments(true)));
+    ["borrowedAmount","alreadyPaidAmount"].forEach(id=>byId(id)?.addEventListener("input", window.updateSmartLoanSummary));
+    if(typeof window.updateSmartLoanSummary === 'function') window.updateSmartLoanSummary();
+  }
+}
+
 function buildForm(){
   const today=todayKey(), now=new Date(), ym=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
   const next=new Date();next.setMonth(next.getMonth()+1);
@@ -888,7 +900,7 @@ function renderDashboard(){
   byId("upcomingList").innerHTML=upcoming.length?upcoming.map(p=>{
     const diffDays = Math.ceil((parseDate(p.dueDate) - todayDateObj) / (1000 * 60 * 60 * 24));
     let badge = diffDays <= 0 ? `<span class="badge-pulse" style="display:inline-block; font-size:0.7rem; padding:2px 6px; border-radius:4px; font-weight:bold; background:var(--danger-soft); color:var(--danger);">ด่วนมาก</span>` : diffDays <= 7 ? `<span style="font-size:0.7rem; padding:2px 6px; border-radius:4px; font-weight:bold; background:#fffbeb; color:#d97706;">ปานกลาง</span>` : `<span style="font-size:0.7rem; padding:2px 6px; border-radius:4px; font-weight:bold; background:var(--success-soft); color:var(--success);">ทั่วไป</span>`;
-    return `<div class="compact-item" data-id="${p.id}"><div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;"><i class="ph ph-dots-six-vertical drag-handle" style="cursor:grab;color:var(--text-light);font-size:1.1rem;margin-right:2px;" title="ลากเพื่อจัดลำดับ"></i>${p.dueDate<=todayKey()?'<i class="ph-fill ph-warning-circle" style="color:var(--danger)" title="ด่วน"></i>':'<i class="ph-fill ph-clock" style="color:var(--primary)" title="รอจ่าย"></i>'}<strong style="background:#dcfce7; color:#166534; padding:2px 6px; border-radius:4px;">${p.name}</strong> <small style="padding:2px 6px; border-radius:4px; font-weight:600; ${p.dueDate<=todayKey()?"color:var(--danger);background:var(--danger-soft)":"color:var(--primary);background:var(--primary-soft)"}">${thaiDate(p.dueDate)} ${p.type==="shared"?"• หนี้ร่วม":""}</small>${badge}</div><div style="display:flex;align-items:center;gap:8px;"><strong class="${p.dueDate<todayKey()?"amount-danger":""}" style="white-space:nowrap;">${money(p.amount)}</strong><button class="icon-btn" style="width:24px;height:24px;min-height:24px;color:var(--text-light);border-radius:4px;" onclick="window.snoozePayment('${p.id}')" title="เลื่อนไปพรุ่งนี้"><i class="ph ph-clock-clockwise"></i></button></div></div>`;
+    return `<div class="compact-item" data-id="${p.id}" onclick="window.openPaymentDetails('${p.id}')" style="cursor:pointer;"><div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;"><i class="ph ph-dots-six-vertical drag-handle" style="cursor:grab;color:var(--text-light);font-size:1.1rem;margin-right:2px;" onclick="event.stopPropagation();" title="ลากเพื่อจัดลำดับ"></i>${p.dueDate<=todayKey()?'<i class="ph-fill ph-warning-circle" style="color:var(--danger)" title="ด่วน"></i>':'<i class="ph-fill ph-clock" style="color:var(--primary)" title="รอจ่าย"></i>'}<strong style="background:#dcfce7; color:#166534; padding:2px 6px; border-radius:4px;">${p.name}</strong> <small style="padding:2px 6px; border-radius:4px; font-weight:600; ${p.dueDate<=todayKey()?"color:var(--danger);background:var(--danger-soft)":"color:var(--primary);background:var(--primary-soft)"}">${thaiDate(p.dueDate)} ${p.type==="shared"?"• หนี้ร่วม":""}</small>${badge}</div><div style="display:flex;align-items:center;gap:8px;"><strong class="${p.dueDate<todayKey()?"amount-danger":""}" style="white-space:nowrap;">${money(p.amount)}</strong><button class="icon-btn" style="width:24px;height:24px;min-height:24px;color:var(--text-light);border-radius:4px;" onclick="event.stopPropagation(); window.snoozePayment('${p.id}')" title="เลื่อนไปพรุ่งนี้"><i class="ph ph-clock-clockwise"></i></button></div></div>`;
   }).join(""):`<div class="empty">ยังไม่มีรายการที่ต้องจ่าย</div>`;
 
   if (window.Sortable) {
@@ -1576,3 +1588,31 @@ byId("resetBtn")?.addEventListener("click", handleResetData);
 byId("moreResetBtn")?.addEventListener("click", ()=>{ closeMore(); handleResetData(); });
 
 renderMonthOptions();buildForm();renderAll();initAuth();
+
+
+window.openPaymentDetails = function(id) {
+  const p = state.payments.find(x => x.id === id);
+  if (!p) return;
+  
+  let details = `<div style="margin-bottom:12px;"><strong style="color:var(--text-light);font-size:0.85rem;">ชื่อรายการ</strong><div style="font-size:1.1rem;font-weight:600;">${p.name}</div></div>`;
+  details += `<div style="margin-bottom:12px;"><strong style="color:var(--text-light);font-size:0.85rem;">ยอดชำระ</strong><div style="font-size:1.1rem;color:var(--danger);font-weight:600;">${money(p.amount)}</div></div>`;
+  details += `<div style="margin-bottom:12px;"><strong style="color:var(--text-light);font-size:0.85rem;">วันครบกำหนดเดิม</strong><div>${thaiDate(p.dueDate)}</div></div>`;
+  
+  if (p.type === 'shared') {
+     details += `<div style="margin-bottom:12px;"><strong style="color:var(--text-light);font-size:0.85rem;">ประเภท</strong><div>หนี้ร่วม</div></div>`;
+  } else if (p.debtKind) {
+     const kindLabel = {credit_card:"บัตรเครดิต",installment:"ผ่อนคงที่",smart_installment:"ผ่อนยืดหยุ่น",loan:"สินเชื่อ",statement:"ใบแจ้งหนี้"}[p.debtKind]||"หนี้";
+     details += `<div style="margin-bottom:12px;"><strong style="color:var(--text-light);font-size:0.85rem;">ประเภทหนี้</strong><div>${kindLabel}</div></div>`;
+  }
+  
+  if (p.totalInstallments) {
+     details += `<div style="margin-bottom:12px;"><strong style="color:var(--text-light);font-size:0.85rem;">งวดที่</strong><div>${p.installmentNo} / ${p.totalInstallments}</div></div>`;
+  }
+  
+  if (p.note) {
+     details += `<div style="margin-bottom:12px;"><strong style="color:var(--text-light);font-size:0.85rem;">หมายเหตุ</strong><div style="background:#f1f5f9;padding:8px;border-radius:6px;margin-top:4px;">${p.note}</div></div>`;
+  }
+  
+  byId('paymentDetailsBody').innerHTML = details;
+  byId('paymentDetailsModal').classList.remove('hidden');
+};
