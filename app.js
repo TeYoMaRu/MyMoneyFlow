@@ -187,8 +187,8 @@ function thaiDate(s){ return s?parseDate(s).toLocaleDateString("th-TH",{day:"num
 function byId(id){ return document.getElementById(id); }
 function toast(msg){ const t=byId("toast"); if(!t)return; t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2200); }
 
-const pageTitles={dashboard:"ภาพรวม",calendar:"รายการต้องจ่าย",debts:"หนี้ทั้งหมด",income:"เงินเข้า",rotation:"เงินหมุน",forecast:"แผนล่วงหน้า"};
-const pageBadges={dashboard:"แดชบอร์ด",calendar:"ปฏิทินรายจ่าย",debts:"ภาพรวมหนี้",income:"บันทึกรายรับ",rotation:"วางแผนเงินหมุน",forecast:"คาดการณ์ 6 เดือน"};
+const pageTitles={dashboard:"ภาพรวม",calendar:"รายการต้องจ่าย",debts:"หนี้ทั้งหมด",installments:"ผ่อนสินค้า",income:"เงินเข้า",rotation:"เงินหมุน",forecast:"แผนล่วงหน้า"};
+const pageBadges={dashboard:"แดชบอร์ด",calendar:"ปฏิทินรายจ่าย",debts:"ภาพรวมหนี้",installments:"รายการผ่อนสินค้า",income:"บันทึกรายรับ",rotation:"วางแผนเงินหมุน",forecast:"คาดการณ์ 6 เดือน"};
 
 function navigateTo(pageId){
   if(!pageTitles[pageId]) return;
@@ -245,6 +245,11 @@ byId("mob-more")?.addEventListener("click", openMore);
 byId("openMobileMenuBtn")?.addEventListener("click", openMore);
 byId("closeMoreBtn")?.addEventListener("click", closeMore);
 moreModal?.addEventListener("click", e=>{ if(e.target===moreModal) closeMore(); });
+
+byId("moreInstallmentsBtn")?.addEventListener("click", ()=>{
+  closeMore();
+  navigateTo("installments");
+});
 
 byId("moreForecastBtn")?.addEventListener("click", ()=>{
   closeMore();
@@ -1217,6 +1222,301 @@ function renderDebts(){
   }).join(""):`<div class="empty">ยังไม่มีข้อมูลหนี้</div>`;
 }
 
+/* ============================================================
+   INSTALLMENTS (ผ่อนสินค้า)
+   ============================================================ */
+let currentInstallmentFilter = "active";
+let installmentSearchTerm = "";
+const expandedInstallmentSchedules = new Set();
+
+function isInstallmentDebt(d){
+  if(!d) return false;
+  if(d.debtKind === "installment" || d.debtKind === "smart_installment" || d.debtKind === "shared_installment") return true;
+  if(d.type === "shared_installment" || d.sharedMode === "installment") return true;
+  if(num(d.installments) > 0 && !d.loanRoundMode) return true;
+  if(typeof d.name === "string" && d.name.toLowerCase().includes("ผ่อน") && !d.loanRoundMode) return true;
+  return false;
+}
+
+window.toggleInstallmentSchedule = function(id){
+  if(expandedInstallmentSchedules.has(id)){
+    expandedInstallmentSchedules.delete(id);
+  } else {
+    expandedInstallmentSchedules.add(id);
+  }
+  renderInstallments();
+};
+
+window.setInstallmentFilter = function(filter){
+  currentInstallmentFilter = filter;
+  document.querySelectorAll("#installmentFilterTabs .filter-pill").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.filter === filter);
+  });
+  renderInstallments();
+};
+
+window.openAddInstallment = function(defaultType = "installment"){
+  openAdd();
+  currentType = "debt";
+  document.querySelectorAll(".add-type").forEach(b => {
+    b.classList.toggle("active", b.dataset.type === "debt");
+  });
+  buildForm();
+  const select = byId("debtEntryType");
+  if(select){
+    select.value = defaultType;
+    renderSmartDebtForm(defaultType);
+  }
+};
+
+function setupInstallmentEvents(){
+  const searchInput = byId("installmentSearchInput");
+  if(searchInput && !searchInput.dataset.bound){
+    searchInput.dataset.bound = "true";
+    searchInput.addEventListener("input", (e) => {
+      installmentSearchTerm = e.target.value.trim();
+      renderInstallments();
+    });
+  }
+
+  const tabs = document.querySelectorAll("#installmentFilterTabs .filter-pill");
+  tabs.forEach(btn => {
+    if(!btn.dataset.bound){
+      btn.dataset.bound = "true";
+      btn.addEventListener("click", () => {
+        window.setInstallmentFilter(btn.dataset.filter);
+      });
+    }
+  });
+}
+
+function renderInstallments(){
+  if(!byId("installments")) return;
+  setupInstallmentEvents();
+
+  const allInstDebts = state.debts.filter(isInstallmentDebt);
+  const activeInstDebts = allInstDebts.filter(d => num(d.remaining) > 0);
+  const completedInstDebts = allInstDebts.filter(d => num(d.remaining) <= 0);
+
+  if(byId("instTabActiveCount")) byId("instTabActiveCount").textContent = activeInstDebts.length;
+  if(byId("instTabAllCount")) byId("instTabAllCount").textContent = allInstDebts.length;
+  if(byId("instTabCompletedCount")) byId("instTabCompletedCount").textContent = completedInstDebts.length;
+
+  const totalRemaining = allInstDebts.reduce((sum, d) => sum + num(d.remaining), 0);
+  const totalCost = allInstDebts.reduce((sum, d) => {
+    const total = num(d.totalDebt) || (num(d.monthlyAmount || d.currentBill) * Math.max(1, num(d.installments) || 1)) || num(d.remaining);
+    return sum + total;
+  }, 0);
+  const totalPaid = Math.max(0, totalCost - totalRemaining);
+  const overallPct = totalCost > 0 ? Math.min(100, Math.round((totalPaid / totalCost) * 100)) : 0;
+
+  const ym = activeMonthKey();
+  const thisMonthInstPayments = state.payments.filter(p => monthKey(p.dueDate) === ym && (p.debtKind === "installment" || p.debtKind === "smart_installment" || p.debtKind === "shared_installment" || (p.debtId && allInstDebts.some(d => d.id === p.debtId))));
+  const thisMonthDue = thisMonthInstPayments.reduce((s, p) => s + num(p.amount), 0);
+  const thisMonthPaid = thisMonthInstPayments.filter(p => p.paid).reduce((s, p) => s + num(p.amount), 0);
+  const thisMonthUnpaid = Math.max(0, thisMonthDue - thisMonthPaid);
+
+  if(byId("instTotalRemaining")) byId("instTotalRemaining").textContent = money(totalRemaining);
+  if(byId("instTotalRemainingSub")) byId("instTotalRemainingSub").textContent = `จากยอดเต็มทั้งหมด ${money(totalCost)}`;
+  if(byId("instThisMonthDue")) byId("instThisMonthDue").textContent = money(thisMonthDue);
+  if(byId("instThisMonthSub")) byId("instThisMonthSub").textContent = `ชำระแล้ว ${money(thisMonthPaid)} • รอจ่าย ${money(thisMonthUnpaid)}`;
+  if(byId("instActiveCount")) byId("instActiveCount").textContent = `${activeInstDebts.length} รายการ`;
+  if(byId("instCompletedCount")) byId("instCompletedCount").textContent = `ผ่อนครบแล้ว ${completedInstDebts.length} รายการ`;
+  if(byId("instOverallProgress")) byId("instOverallProgress").textContent = `${overallPct}%`;
+  if(byId("instOverallProgressBar")) byId("instOverallProgressBar").style.width = `${overallPct}%`;
+
+  let displayList = allInstDebts;
+  if(currentInstallmentFilter === "active"){
+    displayList = activeInstDebts;
+  } else if(currentInstallmentFilter === "completed"){
+    displayList = completedInstDebts;
+  }
+
+  if(installmentSearchTerm){
+    const term = installmentSearchTerm.toLowerCase();
+    displayList = displayList.filter(d => (d.name || "").toLowerCase().includes(term));
+  }
+
+  const cardsEl = byId("installmentCards");
+  if(cardsEl){
+    if(displayList.length){
+      cardsEl.innerHTML = displayList.map(d => {
+        const totalInst = Math.max(1, num(d.installments) || 1);
+        const debtPayments = state.payments.filter(p => p.debtId === d.id).sort((a,b) => a.dueDate.localeCompare(b.dueDate));
+        const unpaid = debtPayments.filter(p => !p.paid);
+        const paid = debtPayments.filter(p => p.paid);
+        
+        let paidInst = num(d.paidInstallments) || 0;
+        if(debtPayments.length > 0){
+          paidInst = Math.min(totalInst, Math.max(paidInst, totalInst - unpaid.length));
+        }
+        const remainInst = Math.max(0, totalInst - paidInst);
+        const isCompleted = num(d.remaining) <= 0 || (debtPayments.length > 0 && unpaid.length === 0);
+
+        const totalDebt = num(d.totalDebt) || (num(d.monthlyAmount || d.currentBill) * totalInst) || num(d.remaining);
+        const paidAmount = Math.max(0, totalDebt - num(d.remaining));
+        const pct = totalDebt > 0 ? Math.min(100, Math.round((paidAmount / totalDebt) * 100)) : (isCompleted ? 100 : 0);
+
+        const kindLabel = d.debtKind === "smart_installment" ? "ผ่อนยืดหยุ่น" : (d.type === "shared_installment" || d.debtKind === "shared_installment" ? "ผ่อนร่วม" : "ผ่อนคงที่");
+        const nextPayment = unpaid[0];
+
+        let nextDueHtml = "";
+        if(isCompleted){
+          nextDueHtml = `
+            <div class="installment-next-due-box is-completed">
+              <div style="display:flex;align-items:center;gap:6px;color:#166534;font-weight:700;">
+                <i class="ph-fill ph-check-circle" style="font-size:1.15rem;"></i>
+                <span>ผ่อนชำระครบตามจำนวน ${totalInst} งวดแล้ว</span>
+              </div>
+            </div>`;
+        } else if(nextPayment){
+          const isOverdue = nextPayment.dueDate < todayKey();
+          nextDueHtml = `
+            <div class="installment-next-due-box ${isOverdue ? 'is-overdue' : ''}">
+              <div>
+                <small style="color:var(--muted);display:block;font-size:0.75rem;">งวดถัดไป (${nextPayment.installmentNo || (paidInst + 1)}/${totalInst})</small>
+                <strong style="color:${isOverdue ? 'var(--danger)' : 'var(--text-dark)'};font-size:0.9rem;">
+                  ${thaiDate(nextPayment.dueDate)} • ${money(nextPayment.amount)}
+                  ${isOverdue ? ' <span style="font-size:0.72rem;color:var(--danger);font-weight:bold;">(เลยกำหนด)</span>' : ''}
+                </strong>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="togglePaid('${nextPayment.id}')" style="padding:5px 12px;font-size:0.8rem;white-space:nowrap;">
+                <i class="ph ph-check"></i> จ่ายงวดนี้
+              </button>
+            </div>`;
+        } else {
+          nextDueHtml = `
+            <div class="installment-next-due-box">
+              <div>
+                <small style="color:var(--muted);display:block;font-size:0.75rem;">สถานะ</small>
+                <strong style="font-size:0.85rem;">คงเหลืออีก ${remainInst} งวด • งวดละ ${money(d.monthlyAmount || d.currentBill)}</strong>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="addDebtBill('${d.id}')" style="padding:5px 10px;font-size:0.78rem;">
+                <i class="ph ph-plus"></i> เพิ่มงวด
+              </button>
+            </div>`;
+        }
+
+        const isExpanded = expandedInstallmentSchedules.has(d.id);
+        const scheduleHtml = debtPayments.length ? `
+          <button class="installment-schedule-toggle-btn" onclick="toggleInstallmentSchedule('${d.id}')">
+            <i class="ph ${isExpanded ? 'ph-caret-up' : 'ph-caret-down'}"></i>
+            <span>${isExpanded ? 'ซ่อนตารางงวด' : `ดูตารางงวดทั้งหมด (${debtPayments.length} งวด)`}</span>
+          </button>
+          ${isExpanded ? `
+            <div class="installment-schedule-list">
+              ${debtPayments.map(p => `
+                <div class="installment-schedule-row ${p.paid ? 'is-paid' : ''}">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <button class="check-btn ${p.paid ? 'done' : ''}" style="width:22px;height:22px;min-height:22px;font-size:0.75rem;" onclick="togglePaid('${p.id}')">
+                      ${p.paid ? '✓' : ''}
+                    </button>
+                    <div>
+                      <strong>งวดที่ ${p.installmentNo || '-'}</strong>
+                      <small style="color:var(--muted);margin-left:4px;">${thaiDate(p.dueDate)}</small>
+                    </div>
+                  </div>
+                  <div style="text-align:right;">
+                    <strong style="color:${p.paid ? 'var(--text-light)' : 'var(--text-dark)'};">${money(p.amount)}</strong>
+                    <small style="display:block;font-size:0.7rem;color:${p.paid ? 'var(--good)' : (p.dueDate < todayKey() ? 'var(--danger)' : 'var(--muted)')};">
+                      ${p.paid ? 'ชำระแล้ว' : (p.dueDate < todayKey() ? 'เลยกำหนด' : 'รอชำระ')}
+                    </small>
+                  </div>
+                </div>
+              `).join("")}
+            </div>` : ''}
+        ` : '';
+
+        return `
+          <div class="debt-card kind-installment">
+            <div class="debt-top">
+              <div>
+                <h4><i class="ph ph-shopping-bag" style="color:var(--primary);margin-right:4px;"></i>${d.name}</h4>
+                <p>${kindLabel} • ผู้จ่าย: ${payerLabel(d.payer)}</p>
+              </div>
+              <span class="tag ${isCompleted ? '' : 'installment'}" style="${isCompleted ? 'background:#dcfce7;color:#166534;' : ''}">
+                ${isCompleted ? 'ผ่อนครบแล้ว' : `งวด ${paidInst}/${totalInst}`}
+              </span>
+            </div>
+
+            <div class="big ${isCompleted ? 'text-success' : ''}">${money(d.remaining)}</div>
+            <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">
+              <span>ชำระแล้ว ${paidInst} จาก ${totalInst} งวด</span>
+              <span>เหลืออีก ${remainInst} งวด (${Math.round(pct)}%)</span>
+            </div>
+            <div class="progress"><span style="width:${pct}%;background:${isCompleted ? 'var(--good)' : 'var(--primary)'};"></span></div>
+
+            <div class="debt-meta">
+              <div><small>ยอดตั้งต้น (ราคาเต็ม)</small><strong>${money(totalDebt)}</strong></div>
+              <div><small>จ่ายไปแล้ว</small><strong>${money(paidAmount)}</strong></div>
+              <div><small>ค่างวดต่อเดือน</small><strong>${money(d.monthlyAmount || d.currentBill)}</strong></div>
+              <div><small>งวดคงเหลือ</small><strong>${remainInst} งวด</strong></div>
+            </div>
+
+            ${nextDueHtml}
+            ${scheduleHtml}
+
+            <div class="card-actions" style="margin-top:14px;border-top:1px solid var(--line-light);padding-top:12px;">
+              <button class="edit-btn" onclick="editDebt('${d.id}')"><i class="ph ph-pencil-simple"></i> แก้ไข</button>
+              <button class="delete-btn" onclick="deleteDebt('${d.id}')"><i class="ph ph-trash"></i> ลบ</button>
+              <button class="btn btn-ghost" onclick="adjustDebtBalance('${d.id}')">ปรับยอดคงเหลือ</button>
+              <button class="btn btn-secondary" onclick="addDebtBill('${d.id}')"><i class="ph ph-plus"></i> เพิ่มงวดใหม่</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+    } else {
+      cardsEl.innerHTML = `
+        <div class="empty" style="grid-column: 1 / -1; padding:40px 20px; text-align:center;">
+          <i class="ph ph-package" style="font-size:2.8rem;color:var(--muted);display:block;margin-bottom:10px;"></i>
+          <strong style="font-size:1.05rem;">ยังไม่มีรายการผ่อนสินค้า${currentInstallmentFilter === 'completed' ? 'ที่ผ่อนครบแล้ว' : (installmentSearchTerm ? ' ที่ตรงกับคำค้นหา' : '')}</strong>
+          <p style="color:var(--muted);margin:8px 0 16px;font-size:0.85rem;">บันทึกการผ่อนโทรศัพท์ คอมพิวเตอร์ เครื่องใช้ไฟฟ้า รถ หรือสินค้าอื่นๆ เพื่อติดตามยอดคงเหลือและค่างวดได้อย่างแม่นยำ</p>
+          <button class="btn btn-primary" onclick="openAddInstallment()"><i class="ph ph-plus-circle"></i> เพิ่มรายการผ่อนสินค้า</button>
+        </div>
+      `;
+    }
+  }
+
+  // Upcoming installment payments list
+  const upcomingListEl = byId("upcomingInstallmentsList");
+  if(upcomingListEl){
+    const upcomingInstPayments = state.payments.filter(p => {
+      if(p.paid) return false;
+      if(p.debtKind === "installment" || p.debtKind === "smart_installment" || p.debtKind === "shared_installment" || (num(p.totalInstallments) > 0)) return true;
+      if(p.debtId && allInstDebts.some(d => d.id === p.debtId)) return true;
+      return false;
+    }).sort((a,b) => a.dueDate.localeCompare(b.dueDate)).slice(0, 10);
+
+    if(upcomingInstPayments.length){
+      upcomingListEl.innerHTML = upcomingInstPayments.map(p => {
+        const isOverdue = p.dueDate < todayKey();
+        return `
+          <div class="payment-row ${isOverdue ? 'overdue' : ''}">
+            <button class="check-btn" onclick="togglePaid('${p.id}')"></button>
+            <div>
+              <strong>${p.name}</strong>
+              <br>
+              <small>${thaiDate(p.dueDate)}${p.installmentNo ? ` • งวด ${p.installmentNo}/${p.totalInstallments || '?'}` : ''} • ผู้จ่าย: ${payerLabel(p.payer)}</small>
+            </div>
+            <div class="hide-mobile"><span class="tag installment">ผ่อนสินค้า</span></div>
+            <div class="hide-mobile" style="color:${isOverdue ? 'var(--danger)' : 'var(--muted)'};font-weight:600;">${isOverdue ? 'เกินกำหนด' : 'รอชำระ'}</div>
+            <div style="text-align:right">
+              <strong class="${isOverdue ? 'amount-danger' : ''}">${money(p.amount)}</strong>
+              <br>
+              <div class="row-actions">
+                <button class="mini-edit-btn" onclick="editPayment('${p.id}')"><i class="ph ph-pencil-simple"></i></button>
+                <button class="mini-delete-btn" onclick="deletePayment('${p.id}')"><i class="ph ph-trash"></i></button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+    } else {
+      upcomingListEl.innerHTML = `<div class="empty">ไม่มีค่างวดที่ค้างชำระ</div>`;
+    }
+  }
+}
+
 function renderIncome(){
   const list=[...state.incomes].sort((a,b)=>b.date.localeCompare(a.date));
   byId("incomeList").innerHTML=list.length?`<div style="overflow-x:auto;"><table><thead><tr><th>วันที่</th><th>รายการ</th><th>ประเภท</th><th>จำนวน</th><th>หมายเหตุ</th><th>จัดการ</th></tr></thead><tbody>${list.map(x=>`<tr><td style="white-space:nowrap;">${thaiDate(x.date)}</td><td style="min-width:120px;">${x.name}</td><td style="white-space:nowrap;">${x.kind==="income"?"รายได้จริง":x.kind==="rotation"?"เงินหมุน":"เงินผ่านมือ"}</td><td class="amount-success" style="white-space:nowrap;">${money(x.amount)}</td><td>${x.note||"-"}</td><td style="white-space:nowrap;"><button class="mini-delete-btn" onclick="deleteIncome('${x.id}')"><i class="ph ph-trash"></i></button></td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">ยังไม่มีข้อมูลเงินเข้า</div>`;
@@ -1482,7 +1782,7 @@ function ensureFlexibleLoanData(){
 }
 
 function renderAll(){
-  ensureFlexibleLoanData();renderDashboard();renderPayments();renderDebts();renderIncome();renderRotations();renderForecast();renderRotationPlanner();renderSavedPlans();}
+  ensureFlexibleLoanData();renderDashboard();renderPayments();renderDebts();renderInstallments();renderIncome();renderRotations();renderForecast();renderRotationPlanner();renderSavedPlans();}
 
 
 /* ===== Start Fresh / Opening Balance ===== */

@@ -26,6 +26,7 @@
         <button class="nav-item active" data-page="dashboard" id="nav-dashboard"><i class="ph ph-house"></i> ภาพรวม</button>
         <button class="nav-item" data-page="calendar" id="nav-calendar"><i class="ph ph-calendar-blank"></i> รายการต้องจ่าย</button>
         <button class="nav-item" data-page="debts" id="nav-debts"><i class="ph ph-credit-card"></i> หนี้ทั้งหมด</button>
+        <button class="nav-item" data-page="installments" id="nav-installments"><i class="ph ph-package"></i> ผ่อนสินค้า</button>
         <button class="nav-item" data-page="income" id="nav-income"><i class="ph ph-money"></i> เงินเข้า</button>
         <button class="nav-item" data-page="rotation" id="nav-rotation"><i class="ph ph-arrows-clockwise"></i> เงินหมุน</button>
         <button class="nav-item" data-page="forecast" id="nav-forecast"><i class="ph ph-chart-bar"></i> แผนล่วงหน้า</button>
@@ -164,13 +165,81 @@
 
       <section id="debts" class="page">
         <article class="panel">
-          <div class="panel-head">
+          <div class="panel-head responsive">
             <div>
               <h3>หนี้ทั้งหมด</h3>
               <p>ยอดตั้งต้น ยอดคงเหลือ งวด และผู้ร่วมรับผิดชอบ</p>
             </div>
+            <div class="head-actions">
+              <button class="btn btn-ghost" onclick="navigateTo('installments')"><i class="ph ph-package"></i> ดูเฉพาะผ่อนสินค้า</button>
+            </div>
           </div>
           <div id="debtCards" class="debt-grid"></div>
+        </article>
+      </section>
+
+      <section id="installments" class="page">
+        <!-- Summary stats specifically for installments -->
+        <div class="installment-summary-grid">
+          <article class="stat-card">
+            <span class="card-label"><i class="ph ph-clock-countdown"></i> ยอดผ่อนคงเหลือรวม</span>
+            <div class="card-val text-danger" id="instTotalRemaining">฿0</div>
+            <span class="card-sub" id="instTotalRemainingSub">จากยอดเต็มทั้งหมด ฿0</span>
+          </article>
+          <article class="stat-card">
+            <span class="card-label"><i class="ph ph-calendar-check"></i> ค่างวดเดือนนี้</span>
+            <div class="card-val text-primary" id="instThisMonthDue">฿0</div>
+            <span class="card-sub" id="instThisMonthSub">ชำระแล้ว ฿0 • รอจ่าย ฿0</span>
+          </article>
+          <article class="stat-card">
+            <span class="card-label"><i class="ph ph-package"></i> สินค้าที่กำลังผ่อน</span>
+            <div class="card-val" id="instActiveCount">0 รายการ</div>
+            <span class="card-sub" id="instCompletedCount">ผ่อนครบแล้ว 0 รายการ</span>
+          </article>
+          <article class="stat-card">
+            <span class="card-label"><i class="ph ph-percent"></i> ความคืบหน้ารวม</span>
+            <div class="card-val text-success" id="instOverallProgress">0%</div>
+            <div class="progress" style="margin-top:8px;height:6px;"><span id="instOverallProgressBar" style="width:0%;"></span></div>
+          </article>
+        </div>
+
+        <article class="panel" style="margin-top: 18px;">
+          <div class="panel-head responsive">
+            <div>
+              <h3><i class="ph ph-package"></i> รายการผ่อนสินค้า</h3>
+              <p>สินค้าที่กำลังผ่อนชำระ งวดคงเหลือ และกำหนดชำระต่องวด</p>
+            </div>
+            <div class="head-actions">
+              <button class="btn btn-ghost" onclick="navigateTo('debts')"><i class="ph ph-credit-card"></i> หนี้ทั้งหมด</button>
+              <button class="btn btn-primary" id="openAddInstallmentBtn" onclick="openAddInstallment()"><i class="ph ph-plus-circle"></i> เพิ่มรายการผ่อนสินค้า</button>
+            </div>
+          </div>
+
+          <!-- Controls: Filters & Search -->
+          <div class="installment-filter-bar">
+            <div class="filter-pills" id="installmentFilterTabs">
+              <button class="filter-pill active" data-filter="active">กำลังผ่อน (<span id="instTabActiveCount">0</span>)</button>
+              <button class="filter-pill" data-filter="all">ทั้งหมด (<span id="instTabAllCount">0</span>)</button>
+              <button class="filter-pill" data-filter="completed">ผ่อนครบแล้ว (<span id="instTabCompletedCount">0</span>)</button>
+            </div>
+            <div class="installment-search-wrap">
+              <i class="ph ph-magnifying-glass"></i>
+              <input type="text" id="installmentSearchInput" placeholder="ค้นหาชื่อสินค้า..." />
+            </div>
+          </div>
+
+          <div id="installmentCards" class="debt-grid" style="margin-top: 14px;"></div>
+        </article>
+
+        <!-- Upcoming installment payments -->
+        <article class="panel" style="margin-top: 20px;">
+          <div class="panel-head">
+            <div>
+              <h3><i class="ph ph-calendar-blank"></i> กำหนดชำระค่างวดที่ใกล้ถึง</h3>
+              <p>งวดที่รอชำระของสินค้าที่กำลังผ่อน</p>
+            </div>
+          </div>
+          <div id="upcomingInstallmentsList" class="payment-list"></div>
         </article>
       </section>
 
@@ -312,6 +381,14 @@
       </div>
 
       <div class="more-menu-grid">
+        <button class="more-item" data-page="installments" id="moreInstallmentsBtn">
+          <span class="more-item-icon" style="background:#eff6ff;color:#2563eb;"><i class="ph ph-package"></i></span>
+          <div class="more-item-info">
+            <strong>ผ่อนสินค้า</strong>
+            <small>ดูรายการผ่อนสินค้า งวดคงเหลือ และยอดรวม</small>
+          </div>
+        </button>
+
         <button class="more-item" data-page="forecast" id="moreForecastBtn">
           <span class="more-item-icon"><i class="ph ph-chart-bar"></i></span>
           <div class="more-item-info">
