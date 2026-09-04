@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#10182b" />
+  <title>My Money Flow</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" type="image/png" href="./my-money-flow-logo.png">
+  <link rel="apple-touch-icon" href="./my-money-flow-logo.png">
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-logo"><img src="./my-money-flow-logo.png" alt="My Money Flow"></div>
+        <div class="brand-text">
+          <h1>My Money Flow</h1>
+          <p>บริหารเงิน • บริหารหนี้</p>
+        </div>
+      </div>
+
+      <nav class="nav" id="desktopNav">
+        <button class="nav-item active" data-page="dashboard" id="nav-dashboard"><i class="ph ph-house"></i> ภาพรวม</button>
+        <button class="nav-item" data-page="calendar" id="nav-calendar"><i class="ph ph-calendar-blank"></i> รายการต้องจ่าย</button>
+        <button class="nav-item" data-page="debts" id="nav-debts"><i class="ph ph-credit-card"></i> หนี้ทั้งหมด</button>
+        <button class="nav-item" data-page="products" id="nav-products"><i class="ph ph-shopping-bag-open"></i> ผ่อนสินค้า</button>
+        <button class="nav-item" data-page="income" id="nav-income"><i class="ph ph-money"></i> เงินเข้า</button>
+        <button class="nav-item" data-page="rotation" id="nav-rotation"><i class="ph ph-arrows-clockwise"></i> เงินหมุน</button>
+        <button class="nav-item" data-page="forecast" id="nav-forecast"><i class="ph ph-chart-bar"></i> แผนล่วงหน้า</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="btn btn-ghost btn-full" id="exportBtn"><i class="ph ph-floppy-disk"></i> สำรองข้อมูล</button>
+        <label class="btn btn-ghost btn-full file-label" id="importLabel">
+          <i class="ph ph-download-simple"></i> นำเข้าข้อมูล
+          <input type="file" id="importInput" accept=".json" hidden />
+        </label>
+        <button class="btn btn-secondary btn-full" id="startFreshBtn"><i class="ph ph-calendar-plus"></i> เริ่มใช้งานรอบใหม่</button>
+        <button class="btn btn-danger-soft btn-full" id="resetBtn"><i class="ph ph-trash"></i> ล้างข้อมูลทั้งหมด</button>
+      </div>
+    </aside>
+
+    <main class="main" id="mainContent">
+      <header class="topbar" id="topbar">
+        <div class="topbar-title-area">
+          <div class="mobile-brand-mini" title="My Money Flow">
+            <img src="./my-money-flow-logo.png" alt="Logo" class="mobile-logo-img">
+          </div>
+          <div class="topbar-text-group">
+            <div class="topbar-title-row">
+              <h2 id="pageTitle">ภาพรวม</h2>
+              <span class="page-badge" id="pageBadge">แดชบอร์ด</span>
+            </div>
+            <div class="topbar-date-pill" id="datePill">
+              <span class="date-icon"><i class="ph ph-calendar-blank"></i></span>
+              <span id="todayText"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <div class="cloud-status offline" id="cloudStatus" title="สถานะ Cloud Sync">
+            <span class="status-dot"></span>
+            <span class="status-label">ออฟไลน์</span>
+          </div>
+          <button class="btn btn-ghost topbar-account-btn" id="accountBtn" title="จัดการบัญชีผู้ใช้">
+            <span class="account-btn-icon"><i class="ph ph-user"></i></span>
+            <span id="accountBtnText" class="account-btn-text">บัญชี</span>
+          </button>
+          <button class="btn btn-primary topbar-add-btn" id="openAddBtn">
+            <span class="btn-icon"><i class="ph ph-plus"></i></span>
+            <span>เพิ่มข้อมูล</span>
+          </button>
+          <button class="btn btn-ghost mobile-only-btn" id="openMobileMenuBtn" aria-label="เมนูและการตั้งค่า" title="เมนูเพิ่มเติม">
+            <span><i class="ph ph-list"></i></span>
+          </button>
+        </div>
+      </header>
+
+      <section id="dashboard" class="page active">
+        <div id="startModeBanner" class="start-mode-banner hidden"></div>
+        <div class="hero-grid">
+          <article class="stat-card balance-card">
+            <span>ยอดเงินจริงปัจจุบัน</span>
+            <strong id="currentBalance">฿0</strong>
+            <small id="balanceHint">รวมเงินเข้าและรายการที่จ่ายแล้ว</small>
+          </article>
+          <article class="stat-card due-card">
+            <span>ต้องจ่ายเดือนนี้</span>
+            <strong id="monthDue">฿0</strong>
+            <small>รวมภาระที่ครบกำหนดเดือนนี้</small>
+          </article>
+          <article class="stat-card unpaid-card">
+            <span>ยังต้องจ่าย</span>
+            <strong id="monthUnpaid">฿0</strong>
+            <small>เฉพาะรายการที่ยังไม่จ่าย</small>
+          </article>
+          <article class="stat-card receive-card">
+            <span>เงินรอรับจากคนอื่น</span>
+            <strong id="expectedShared">฿0</strong>
+            <small>เงินร่วมจ่ายที่ยังไม่ได้รับ</small>
+          </article>
+        </div>
+
+        <div class="grid-2">
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>สถานการณ์เดือนนี้</h3>
+                <p>คำนวณจากเงินปัจจุบัน + เงินเข้า - รายการต้องจ่าย</p>
+              </div>
+            </div>
+            <div id="monthSituation" class="situation-box"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>ใกล้ถึงกำหนด</h3>
+                <p>เรียงตามวันที่ครบกำหนด</p>
+              </div>
+            </div>
+            <div id="upcomingList" class="compact-list"></div>
+          </article>
+        </div>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <h3>ภาพรวมภาระ</h3>
+              <p>แยกยอดที่เป็นภาระของคุณกับเงินที่คนอื่นช่วยรับผิดชอบ</p>
+            </div>
+          </div>
+          <div class="mini-stats">
+            <div><span>ภาระของฉันเดือนนี้</span><strong id="myBurden">฿0</strong></div>
+            <div><span>ยอดผ่านมือเดือนนี้</span><strong id="throughHands">฿0</strong></div>
+            <div><span>จ่ายแล้ว</span><strong id="paidThisMonth">฿0</strong></div>
+            <div><span>คาดการณ์ปลายเดือน</span><strong id="monthEndBalance">฿0</strong></div>
+          </div>
+        </article>
+      </section>
+
+      <section id="calendar" class="page">
+        <article class="panel">
+          <div class="panel-head responsive">
+            <div>
+              <h3>รายการต้องจ่าย</h3>
+              <p>ติ๊ก “จ่ายแล้ว” ระบบจะตัดเงินและยอดหนี้ให้อัตโนมัติ</p>
+            </div>
+            <div class="filters">
+              <select id="calendarMonth"></select>
+              <select id="calendarStatus">
+                <option value="all">ทั้งหมด</option>
+                <option value="unpaid">ยังไม่จ่าย</option>
+                <option value="paid">จ่ายแล้ว</option>
+              </select>
+            </div>
+          </div>
+          <div id="paymentList" class="payment-list"></div>
+        </article>
+      </section>
+
+      <section id="debts" class="page">
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <h3>หนี้ทั้งหมด</h3>
+              <p>ยอดตั้งต้น ยอดคงเหลือ งวด และผู้ร่วมรับผิดชอบ</p>
+            </div>
+          </div>
+          <div id="debtCards" class="debt-grid"></div>
+        </article>
+      </section>
+
+      <section id="products" class="page">
+        <article class="panel">
+          <div class="panel-head responsive">
+            <div><h3><i class="ph ph-shopping-bag-open"></i> ผ่อนสินค้า</h3><p>แยกเรา แฟน และผ่อนร่วมกัน พร้อมสรุปยอดรายเดือน</p></div>
+            <div class="product-toolbar">
+              <select id="productMonthFilter"></select>
+              <button class="btn btn-primary" id="addProductInstallmentBtn"><i class="ph ph-plus"></i> เพิ่มรายการผ่อน</button>
+            </div>
+          </div>
+          <div class="product-summary-grid">
+            <div class="product-summary-card mine"><span>เราจ่ายคนเดียว</span><strong id="productMyOnlyAmount">฿0</strong><small><b id="productMyOnlyCount">0</b> รายการ</small></div>
+            <div class="product-summary-card partner"><span>แฟนจ่ายคนเดียว</span><strong id="productPartnerOnlyAmount">฿0</strong><small><b id="productPartnerOnlyCount">0</b> รายการ</small></div>
+            <div class="product-summary-card shared"><span>ผ่อนร่วมกัน</span><strong id="productSharedTotal">฿0</strong><small><b id="productSharedCount">0</b> รายการ • เรา <b id="productSharedMine">฿0</b> • แฟน <b id="productSharedPartner">฿0</b></small></div>
+          </div>
+          <div class="product-grand-summary">
+            <div><span>จ่ายทั้งหมดเดือนนี้</span><strong id="productGrandTotal">฿0</strong><small id="productGrandCount">0 รายการ</small></div>
+            <div><span>ส่วนที่เราจ่าย</span><strong id="productGrandMine">฿0</strong></div>
+            <div><span>ส่วนที่แฟนจ่าย</span><strong id="productGrandPartner">฿0</strong></div>
+          </div>
+          <div class="product-section-head"><div><h4>รายละเอียดของเดือน</h4><small>หน้ารายการต้องจ่ายจะแสดงยอดรวมเพียง 1 รายการ</small></div></div>
+          <div id="productMonthlyTable" class="table-wrap"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-head"><div><h3>รายการผ่อนทั้งหมด</h3><p>กำหนดยอดแต่ละเดือนได้เอง</p></div></div>
+          <div id="productPlanCards" class="product-plan-grid"></div>
+        </article>
+      </section>
+
+      <section id="income" class="page">
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <h3>เงินเข้า</h3>
+              <p>แยกรายได้จริงออกจากเงินผ่านมือ</p>
+            </div>
+          </div>
+          <div id="incomeList" class="table-wrap"></div>
+        </article>
+      </section>
+
+      <section id="rotation" class="page">
+        <article class="panel rotation-planner">
+          <div class="panel-head responsive">
+            <div>
+              <h3><i class="ph ph-arrows-clockwise"></i> วางแผนหมุนเงิน</h3>
+              <p>จำลองก่อนจ่ายจริง — เงินก้อนเดียวหมุนต่อได้ถึงไหน และเสียต้นทุนเท่าไร</p>
+            </div>
+            <button class="btn btn-secondary" id="useCurrentBalanceBtn">ใช้ยอดเงินจริงปัจจุบัน</button>
+          </div>
+
+          <div class="planner-start">
+            <div class="field">
+              <label for="rotationStartCash">เงินสดตั้งต้น</label>
+              <input id="rotationStartCash" type="number" step="0.01" value="0">
+            </div>
+            <div class="planner-hint">กรอกเฉพาะเงินที่คุณสามารถนำมาหมุนได้จริง ไม่รวมเงินที่กันไว้ใช้จำเป็น</div>
+          </div>
+
+          <div class="rotation-summary-grid">
+            <div><span>เงินตั้งต้น</span><strong id="planStartCash">฿0</strong></div>
+            <div><span>ยอดจ่ายผ่านทั้งหมด</span><strong id="planTotalPaid">฿0</strong></div>
+            <div><span>ดึงกลับทั้งหมด</span><strong id="planTotalBack">฿0</strong></div>
+            <div class="cost"><span>ต้นทุน/เงินหายจากการหมุน</span><strong id="planTotalCost">฿0</strong></div>
+            <div><span>หนี้ลดสุทธิโดยประมาณ</span><strong id="planNetDebtDrop">฿0</strong></div>
+            <div><span>เงินสดหลังจบรอบ</span><strong id="planEndCash">฿0</strong></div>
+          </div>
+
+          <div class="planner-toolbar">
+            <div>
+              <h4>เส้นทางเงิน</h4>
+              <small>เช่น เครดิต A → เครดิต B → ค่าใช้จ่ายที่ดึงกลับไม่ได้</small>
+            </div>
+            <button class="btn btn-primary" id="addRotationStepBtn"><i class="ph ph-plus"></i> เพิ่มรอบ</button>
+          </div>
+
+          <div id="rotationSteps" class="rotation-steps"></div>
+
+          <div id="rotationPlanStatus" class="situation-box"></div>
+
+          <div class="planner-actions">
+            <button class="btn btn-ghost" id="clearRotationPlanBtn">ล้างแผน</button>
+            <button class="btn btn-secondary" id="saveRotationPlanBtn">บันทึกแผนนี้</button>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <h3>แผนที่บันทึกไว้</h3>
+              <p>เก็บไว้เปรียบเทียบก่อนตัดสินใจหมุนเงินจริง</p>
+            </div>
+          </div>
+          <div id="savedRotationPlans" class="saved-plan-list"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <h3>เงินหมุน / เงินยืม</h3>
+              <p>รายการเงินที่รับเข้ามาจริงและมีภาระต้องคืน</p>
+            </div>
+          </div>
+          <div id="rotationList" class="debt-grid"></div>
+        </article>
+      </section>
+
+      <section id="forecast" class="page">
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <h3>แผนล่วงหน้า 6 เดือน</h3>
+              <p>ช่วยดูว่าเดือนไหนมีโอกาสติดลบก่อนถึงวันจริง</p>
+            </div>
+          </div>
+          <div id="forecastTable" class="table-wrap"></div>
+        </article>
+      </section>
+    </main>
+
+    <!-- Floating Action Button for Mobile -->
+    <button class="fab" id="fabAdd" aria-label="เพิ่มข้อมูล" title="เพิ่มข้อมูล">
+      <span class="fab-icon"><i class="ph ph-plus"></i></span>
+      <span class="fab-label">เพิ่ม</span>
+    </button>
+
+    <!-- Mobile Bottom Navigation Bar -->
+    <nav class="mobile-bottom-nav" id="mobileBottomNav" aria-label="แถบนำทางหลัก">
+      <button class="mobile-nav-item active" data-page="dashboard" id="mob-dashboard">
+        <span class="mob-icon"><i class="ph ph-house"></i></span>
+        <span class="mob-text">ภาพรวม</span>
+      </button>
+      <button class="mobile-nav-item" data-page="calendar" id="mob-calendar">
+        <span class="mob-icon"><i class="ph ph-calendar-blank"></i></span>
+        <span class="mob-text">ต้องจ่าย</span>
+      </button>
+      <button class="mobile-nav-item" data-page="debts" id="mob-debts">
+        <span class="mob-icon"><i class="ph ph-credit-card"></i></span>
+        <span class="mob-text">หนี้สิน</span>
+      </button>
+      <button class="mobile-nav-item" data-page="income" id="mob-income">
+        <span class="mob-icon"><i class="ph ph-money"></i></span>
+        <span class="mob-text">เงินเข้า</span>
+      </button>
+      <button class="mobile-nav-item" data-page="rotation" id="mob-rotation">
+        <span class="mob-icon"><i class="ph ph-arrows-clockwise"></i></span>
+        <span class="mob-text">เงินหมุน</span>
+      </button>
+      <button class="mobile-nav-item" id="mob-more" aria-label="เมนูเพิ่มเติม">
+        <span class="mob-icon"><i class="ph ph-list"></i></span>
+        <span class="mob-text">เมนู</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Mobile More Menu / Settings Modal -->
+  <div class="modal-backdrop hidden" id="moreModal">
+    <div class="modal more-modal">
+      <div class="modal-head">
+        <div>
+          <h3>เมนูและการตั้งค่า</h3>
+          <p>จัดการข้อมูลและเครื่องมือเพิ่มเติม</p>
+        </div>
+        <button class="icon-btn" id="closeMoreBtn"><i class="ph ph-x"></i></button>
+      </div>
+
+      <div class="more-menu-grid">
+        <button class="more-item" data-page="products" id="moreProductsBtn">
+          <span class="more-item-icon"><i class="ph ph-shopping-bag-open"></i></span>
+          <div class="more-item-info"><strong>ผ่อนสินค้า</strong><small>ตารางผ่อนและสรุปเรา / แฟน</small></div>
+        </button>
+        <button class="more-item" data-page="forecast" id="moreForecastBtn">
+          <span class="more-item-icon"><i class="ph ph-chart-bar"></i></span>
+          <div class="more-item-info">
+            <strong>แผนล่วงหน้า 6 เดือน</strong>
+            <small>ดูคาดการณ์กระแสเงินสดล่วงหน้า</small>
+          </div>
+        </button>
+
+        <button class="more-item" id="moreAccountBtn">
+          <span class="more-item-icon"><i class="ph ph-cloud"></i></span>
+          <div class="more-item-info">
+            <strong>บัญชี & คลาวด์ซิงก์</strong>
+            <small id="moreAccountStatus">เข้าสู่ระบบเพื่อซิงก์ข้อมูล</small>
+          </div>
+        </button>
+
+        <button class="more-item" id="moreExportBtn">
+          <span class="more-item-icon"><i class="ph ph-floppy-disk"></i></span>
+          <div class="more-item-info">
+            <strong>สำรองข้อมูล (JSON)</strong>
+            <small>ดาวน์โหลดไฟล์ข้อมูลเก็บไว้ในเครื่อง</small>
+          </div>
+        </button>
+
+        <label class="more-item file-label" id="moreImportLabel">
+          <span class="more-item-icon"><i class="ph ph-download-simple"></i></span>
+          <div class="more-item-info">
+            <strong>นำเข้าข้อมูล (JSON)</strong>
+            <small>กู้คืนข้อมูลจากไฟล์สำรอง</small>
+          </div>
+          <input type="file" id="moreImportInput" accept=".json" hidden />
+        </label>
+
+        <button class="more-item start-fresh-item" id="moreStartFreshBtn">
+          <span class="more-item-icon"><i class="ph ph-calendar-plus"></i></span>
+          <div class="more-item-info">
+            <strong>เริ่มใช้งานรอบใหม่</strong>
+            <small>กำหนดวันเริ่มต้นและยอดเงินจริงใหม่</small>
+          </div>
+        </button>
+
+        <button class="more-item danger" id="moreResetBtn">
+          <span class="more-item-icon"><i class="ph ph-trash"></i></span>
+          <div class="more-item-info">
+            <strong>ล้างข้อมูลทั้งหมด</strong>
+            <small>ล้างข้อมูลในเครื่องเพื่อเริ่มใหม่</small>
+          </div>
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Start Fresh / Opening Balance Setup -->
+  <div class="modal-backdrop hidden" id="startFreshModal">
+    <div class="modal start-fresh-modal">
+      <div class="modal-head">
+        <div>
+          <h3><i class="ph ph-calendar-plus"></i> เริ่มใช้งานรอบใหม่</h3>
+          <p>เหมาะสำหรับเริ่มใช้จริงเดือนหน้า โดยไม่ต้องย้อนกรอกรายการที่จ่ายไปแล้ว</p>
+        </div>
+        <button class="icon-btn" id="closeStartFreshBtn" type="button"><i class="ph ph-x"></i></button>
+      </div>
+
+      <div class="start-fresh-guide">
+        <div class="guide-step"><span>1</span><div><strong>กำหนดวันเริ่มใช้</strong><small>แนะนำวันที่ 1 ของเดือนหน้า</small></div></div>
+        <div class="guide-step"><span>2</span><div><strong>ใส่ยอดเงินจริง ณ วันเริ่ม</strong><small>รวมเฉพาะเงินที่พร้อมใช้จริง</small></div></div>
+        <div class="guide-step"><span>3</span><div><strong>ค่อยเพิ่มหนี้ที่ยังเหลือ</strong><small>ไม่ต้องกรอกประวัติเดือนที่ผ่านไปแล้ว</small></div></div>
+      </div>
+
+      <div class="start-fresh-warning">
+        <i class="ph ph-warning-circle"></i>
+        <div>
+          <strong>การเริ่มรอบใหม่จะล้างรายการเดิมใน My Money Flow</strong>
+          <small>แนะนำให้กด “สำรองข้อมูลเดิม” ก่อน ระบบจะไม่แตะบัญชี Supabase หรือการเข้าสู่ระบบ แต่ข้อมูลการเงินชุดใหม่จะซิงก์แทนชุดเดิมเมื่อบันทึก</small>
+        </div>
+      </div>
+
+      <div class="form-grid start-fresh-form">
+        <div class="field">
+          <label for="freshStartDate">วันที่เริ่มใช้จริง</label>
+          <input id="freshStartDate" type="date" required>
+        </div>
+        <div class="field">
+          <label for="freshOpeningBalance">ยอดเงินจริง ณ วันเริ่มต้น</label>
+          <input id="freshOpeningBalance" type="number" inputmode="decimal" step="0.01" value="0">
+          <small>เช่น เงินในบัญชี + เงินสดที่นำมาใช้จ่ายได้จริง</small>
+        </div>
+      </div>
+
+      <label class="fresh-confirm">
+        <input type="checkbox" id="freshConfirmCheck">
+        <span>ฉันเข้าใจว่าจะเริ่มข้อมูลการเงินใหม่ และจะกรอกเฉพาะหนี้/ภาระที่ยังเหลือตั้งแต่วันเริ่มต้น</span>
+      </label>
+
+      <div class="modal-actions start-fresh-actions">
+        <button class="btn btn-ghost" id="backupBeforeFreshBtn" type="button"><i class="ph ph-floppy-disk"></i> สำรองข้อมูลเดิม</button>
+        <button class="btn btn-primary" id="confirmStartFreshBtn" type="button"><i class="ph ph-play-circle"></i> เริ่มรอบใหม่</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="addModal">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <h3>เพิ่มข้อมูล</h3>
+          <p>เลือกประเภทข้อมูลที่ต้องการบันทึก</p>
+        </div>
+        <button class="icon-btn" id="closeModalBtn"><i class="ph ph-x"></i></button>
+      </div>
+
+      <div class="add-type-grid">
+        <button class="add-type active" data-type="debt"><i class="ph ph-credit-card"></i><span>เพิ่มหนี้</span></button>
+        <button class="add-type" data-type="shared"><i class="ph ph-handshake"></i><span>หนี้ร่วม</span></button>
+        <button class="add-type" data-type="income"><i class="ph ph-money"></i><span>เงินเข้า</span></button>
+        <button class="add-type" data-type="expense"><i class="ph ph-receipt"></i><span>ค่าใช้จ่าย</span></button>
+        <button class="add-type" data-type="product_installment"><i class="ph ph-shopping-bag-open"></i><span>ผ่อนสินค้า</span></button>
+        <button class="add-type" data-type="rotation"><i class="ph ph-arrows-clockwise"></i><span>เงินหมุน</span></button>
+        <button class="add-type" data-type="balance"><i class="ph ph-scales"></i><span>ปรับยอดเงิน</span></button>
+      </div>
+
+      <form id="dataForm" class="form-grid"></form>
+
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="cancelBtn" type="button">ยกเลิก</button>
+        <button class="btn btn-secondary" id="saveAndContinueBtn" type="button">บันทึกและเพิ่มต่อ</button>
+        <button class="btn btn-primary" id="saveBtn" type="button">บันทึก</button>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="modal-backdrop hidden" id="productInstallmentModal">
+    <div class="modal product-installment-modal">
+      <div class="modal-head">
+        <div><h3><i class="ph ph-shopping-bag-open"></i> <span id="productModalTitle">เพิ่มรายการผ่อนสินค้า</span></h3><p>ใส่ยอดแต่ละเดือนได้เอง และเลือกผู้จ่าย</p></div>
+        <button class="icon-btn" id="closeProductInstallmentBtn" type="button"><i class="ph ph-x"></i></button>
+      </div>
+      <form id="productInstallmentForm">
+        <div class="form-grid">
+          <div class="field"><label>ชื่อสินค้า / รายการ</label><input id="productInstallmentName" required placeholder="เช่น โทรศัพท์"></div>
+          <div class="field"><label>รูปแบบการผ่อน</label><select id="productPayerMode"><option value="me">เราผ่อนคนเดียว</option><option value="partner">แฟนผ่อนคนเดียว</option><option value="shared">ผ่อนร่วมกัน</option></select></div>
+          <div class="field"><label>ชื่อผู้ร่วมจ่าย</label><input id="productPartnerName" value="แฟน"></div>
+          <div class="field"><label>จำนวนงวด</label><input id="productInstallmentCount" type="number" min="1" max="120" value="1" required></div>
+          <div class="field"><label>เริ่มเดือน</label><input id="productFirstMonth" type="month" required></div>
+        </div>
+        <div class="product-editor-note"><i class="ph ph-info"></i> ยอดแต่ละเดือนไม่จำเป็นต้องเท่ากัน</div>
+        <div class="product-installment-editor"><div class="product-editor-head"><strong>ตารางผ่อนรายเดือน</strong><small id="productEditorHint"></small></div><div id="productInstallmentRows"></div></div>
+      </form>
+      <div class="modal-actions"><button class="btn btn-ghost" id="cancelProductInstallmentBtn" type="button">ยกเลิก</button><button class="btn btn-primary" id="saveProductInstallmentBtn" type="button">บันทึก</button></div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="authModal">
+    <div class="modal auth-modal">
+      <div class="modal-head">
+        <div>
+          <h3>เชื่อมต่อ My Money Flow</h3>
+          <p>เข้าสู่ระบบเพื่อซิงก์ข้อมูลระหว่างมือถือ แท็บเล็ต และคอม</p>
+        </div>
+        <button class="icon-btn" id="closeAuthBtn"><i class="ph ph-x"></i></button>
+      </div>
+
+      <div id="authSignedOut">
+        <div class="auth-tabs">
+          <button class="auth-tab active" data-auth-mode="login">เข้าสู่ระบบ</button>
+          <button class="auth-tab" data-auth-mode="register">สมัครบัญชี</button>
+        </div>
+        <form id="authForm" class="auth-form">
+          <div class="field">
+            <label for="authEmail">อีเมล</label>
+            <input id="authEmail" type="email" autocomplete="email" required placeholder="name@example.com">
+          </div>
+          <div class="field">
+            <label for="authPassword">รหัสผ่าน</label>
+            <input id="authPassword" type="password" autocomplete="current-password" minlength="6" required placeholder="อย่างน้อย 6 ตัวอักษร">
+          </div>
+          <button class="btn btn-primary btn-full" id="authSubmitBtn" type="submit">เข้าสู่ระบบ</button>
+        </form>
+        <p class="auth-note">ข้อมูลในเครื่องจะยังอยู่ และเมื่อเข้าสู่ระบบครั้งแรก ระบบจะอัปโหลดข้อมูลชุดนี้ขึ้น Supabase ให้</p>
+      </div>
+
+      <div id="authSignedIn" class="hidden">
+        <div class="account-card">
+          <span>เข้าสู่ระบบด้วย</span>
+          <strong id="accountEmail">-</strong>
+          <small id="lastSyncText">ยังไม่ได้ซิงก์</small>
+        </div>
+        <div class="auth-actions">
+          <button class="btn btn-secondary" id="syncNowBtn"><i class="ph ph-cloud"></i> ซิงก์ตอนนี้</button>
+          <button class="btn btn-danger-soft" id="logoutBtn">ออกจากระบบ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
